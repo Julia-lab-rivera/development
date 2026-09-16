@@ -1,80 +1,281 @@
-package back.puntos;
 
-import back.puntos.modelo.*;
-import back.puntos.servicio.ServicioPuntos;
-import back.puntos.servicio.ServicioRecompensas;
+package back;
 
-/**
- * Demo del módulo de puntos.
- *
- * OJO: esta clase NO es el Main de la aplicación JavaFX (ese vive en
- * el paquete por defecto, como indica el pom.xml: <mainClass>Main</mainClass>).
- * Es solo un punto de entrada de prueba para verificar que la lógica de
- * puntos funciona, y sirve de ejemplo de cómo otro módulo (por ejemplo
- * un controlador de JavaFX) debería usar ServicioPuntos y ServicioRecompensas.
- *
- * Ejecutar con: java -cp out back.puntos.DemoPuntos
- */
+import back.model.*;
+import back.service.AuthService;
+import back.service.ServicioEstudiantes;
+import back.service.ServicioPuntos;
+import back.service.ServicioRecompensas;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Scanner;
+
+
 public class DemoPuntos {
 
+    private static final Scanner TECLADO = new Scanner(System.in);
+    private static final ServicioPuntos SERVICIO_PUNTOS = new ServicioPuntos();
+    private static final ServicioRecompensas SERVICIO_RECOMPENSAS = new ServicioRecompensas();
+
+    private static final List<Objeto> OBJETOS = new ArrayList<>();
+    private static int contadorObjetos = 0;
+    private static int contadorRecompensas = 0;
+
     public static void main(String[] args) {
-        ServicioPuntos servicioPuntos = new ServicioPuntos();
-        ServicioRecompensas servicioRecompensas = new ServicioRecompensas();
+        Estudiante estudiante = iniciarSesionOFallar();
+        if (estudiante == null) {
+            return;
+        }
 
-        // 1. Un estudiante de la Sergio
-        Estudiante juan = new Estudiante("EST001", "Juan Pérez", "juan.perez@usergioarboleda.edu.co");
+        boolean seguir = true;
+        while (seguir) {
+            mostrarMenu(estudiante);
+            int opcion = leerEntero("Elige una opcion: ", 1, 6);
 
-        // 2. Un objeto de alto valor, perdido en el campus
-        Objeto billetera = new Objeto(
-                "OBJ001",
-                "Billetera de cuero",
-                "Billetera café con documentos y una tarjeta débito adentro",
-                CategoriaObjeto.ACCESORIOS,
-                ValorObjeto.ALTO
+            switch (opcion) {
+                case 1 -> registrarObjetoNuevo(estudiante);
+                case 2 -> verObjetoExistente(estudiante);
+                case 3 -> devolverObjetoPerdido(estudiante);
+                case 4 -> canjearRecompensa(estudiante);
+                case 5 -> mostrarHistorial(estudiante);
+                case 6 -> seguir = false;
+                default -> System.out.println("Opción no válida.");
+            }
+        }
+
+        System.out.println("\nSesion terminada. Los puntos quedaron guardados en data/puntos.txt");
+    }
+
+    // ---------------------------------------------------------------
+    // Login / registro
+    // ---------------------------------------------------------------
+
+    private static Estudiante iniciarSesionOFallar() {
+        System.out.print("Correo institucional (@usa.edu.co): ");
+        String correo = TECLADO.nextLine().trim();
+
+        System.out.print("Contrasena (dejala vacia si aun no tienes cuenta): ");
+        String contrasena = TECLADO.nextLine();
+
+        Usuario usuario = contraseña.isBlank() ? null : AuthService.iniciarSesion(correo, contrasena);
+
+        if (usuario == null) {
+            System.out.println("\nNo existe una cuenta con ese correo (o la contrasena fue incorrecta).");
+            System.out.print("Quieres registrarte con ese correo? (s/n): ");
+            if (!TECLADO.nextLine().trim().equalsIgnoreCase("s")) {
+                System.out.println("Saliendo sin iniciar sesion.");
+                return null;
+            }
+            usuario = registrarUsuarioPorConsola(correo);
+            if (usuario == null) {
+                return null;
+            }
+        }
+
+        Estudiante estudiante = ServicioEstudiantes.obtenerOCrearEstudiante(usuario);
+        System.out.println("\n== Sesion iniciada ==");
+        System.out.println(estudiante);
+        return estudiante;
+    }
+
+    private static Usuario registrarUsuarioPorConsola(String correo) {
+        System.out.print("Nombre completo: ");
+        String nombre = TECLADO.nextLine().trim();
+
+        System.out.print("Elige una contrasena (minimo 6 caracteres): ");
+        String contraseña = TECLADO.nextLine();
+
+        System.out.print("Confirma la contrasena: ");
+        String confirmarContraseña = TECLADO.nextLine();
+
+        String resultado = AuthService.registrarUsuario(nombre, correo, contraseña, confirmarContraseña);
+
+        if (!"REGISTRO_EXITOSO".equals(resultado)) {
+            System.out.println("No se pudo registrar: " + resultado);
+            return null;
+        }
+
+        System.out.println("Registro exitoso. Sesión iniciada automáticamente.");
+        return AuthService.iniciarSesion(correo, contraseña);
+    }
+
+    // ---------------------------------------------------------------
+    // Menu
+    // ---------------------------------------------------------------
+
+    private static void mostrarMenu(Estudiante estudiante) {
+        System.out.println("\n===================================");
+        System.out.println(estudiante);
+        System.out.println("1. Registrar un objeto (perdido/encontrado)");
+        System.out.println("2. Ver un objeto ya registrado");
+        System.out.println("3. Devolver un objeto perdido");
+        System.out.println("4. Canjear una recompensa");
+        System.out.println("5. Ver mi historial de puntos");
+        System.out.println("6. Salir");
+    }
+
+    // ---------------------------------------------------------------
+    // Opciones del menu
+    // ---------------------------------------------------------------
+
+    private static void registrarObjetoNuevo(Estudiante estudiante) {
+        System.out.print("\nNombre del objeto: ");
+        String nombre = TECLADO.nextLine().trim();
+
+        System.out.print("Descripción: ");
+        String descripcion = TECLADO.nextLine().trim();
+
+        CategoriaObjeto categoria = leerCategoria();
+        ValorObjeto valor = leerValor();
+        EstadoObjeto estado = leerEstadoInicial();
+
+        contadorObjetos++;
+        Objeto objeto = new Objeto(
+                "OBJ" + String.format("%03d", contadorObjetos),
+                nombre,
+                descripcion,
+                categoria,
+                valor
+        );
+        objeto.setEstado(estado);
+
+        System.out.print("Quieres agregar una foto (ruta o URL)? Deja vacio para omitir: ");
+        String foto = TECLADO.nextLine().trim();
+        if (!foto.isBlank()) {
+            objeto.agregarFoto(foto);
+        }
+
+        OBJETOS.add(objeto);
+        SERVICIO_PUNTOS.registrarObjeto(estudiante, objeto);
+
+        System.out.println("\nObjeto registrado: " + objeto);
+        System.out.println(estudiante);
+    }
+
+    private static void verObjetoExistente(Estudiante estudiante) {
+        Objeto objeto = elegirObjeto("ver");
+        if (objeto == null) {
+            return;
+        }
+
+        SERVICIO_PUNTOS.verObjeto(estudiante, objeto);
+
+        System.out.println("\n" + objeto);
+        if (!objeto.getFotos().isEmpty()) {
+            System.out.println("Fotos: " + objeto.getFotos());
+        }
+        System.out.println(estudiante);
+    }
+
+    private static void devolverObjetoPerdido(Estudiante estudiante) {
+        Objeto objeto = elegirObjeto("devolver");
+        if (objeto == null) {
+            return;
+        }
+
+        try {
+            SERVICIO_PUNTOS.devolverObjetoPerdido(estudiante, objeto);
+            System.out.println("\nObjeto devuelto: " + objeto);
+            System.out.println(estudiante);
+        } catch (IllegalStateException e) {
+            System.out.println("No se pudo devolver el objeto: " + e.getMessage());
+        }
+    }
+
+    private static void canjearRecompensa(Estudiante estudiante) {
+        System.out.print("\nNombre de la recompensa: ");
+        String nombre = TECLADO.nextLine().trim();
+
+        int costoPuntos = leerEntero("Costo en puntos: ", 1, Integer.MAX_VALUE);
+
+        contadorRecompensas++;
+        Recompensa recompensa = new Recompensa(
+                "REC" + String.format("%03d", contadorRecompensas),
+                nombre,
+                costoPuntos
         );
 
-        System.out.println("== Estado inicial ==");
-        System.out.println(juan);
+        boolean exitoso = SERVICIO_RECOMPENSAS.canjear(estudiante, recompensa);
 
-        // 3. Juan ve el objeto en la lista de perdidos -> gana 1 punto
-        servicioPuntos.verObjeto(juan, billetera);
-        System.out.println("\nDespués de ver el objeto:");
-        System.out.println(juan);
+        System.out.println("\n¿Canje exitoso? " + exitoso);
+        if (!exitoso) {
+            System.out.println("(No tienes suficientes puntos: te faltan "
+                    + (costoPuntos - estudiante.getPuntosTotales()) + ")");
+        }
+        System.out.println(estudiante);
+    }
 
-        // 4. Ver el mismo objeto otra vez NO debe volver a dar puntos
-        servicioPuntos.verObjeto(juan, billetera);
-        System.out.println("\nDespués de ver el mismo objeto otra vez (no debe subir):");
-        System.out.println(juan);
+    private static void mostrarHistorial(Estudiante estudiante) {
+        System.out.println("\n== Historial de puntos de " + estudiante.getNombre() + " ==");
+        if (estudiante.getHistorialPuntos().isEmpty()) {
+            System.out.println("(Todavia no tienes movimientos)");
+        } else {
+            estudiante.getHistorialPuntos().forEach(System.out::println);
+        }
+        System.out.println(estudiante);
+    }
 
-        // 5. Juan registra un objeto que encontró -> gana 5 puntos
-        Objeto llaves = new Objeto(
-                "OBJ002",
-                "Llavero con 3 llaves",
-                "Encontrado en la cafetería",
-                CategoriaObjeto.LLAVES,
-                ValorObjeto.BAJO
-        );
-        servicioPuntos.registrarObjeto(juan, llaves);
-        System.out.println("\nDespués de registrar un objeto encontrado:");
-        System.out.println(juan);
+    // ---------------------------------------------------------------
+    // Utilidades de lectura por consola
+    // ---------------------------------------------------------------
 
-        // 6. Juan devuelve la billetera (objeto perdido de gran valor)
-        //    -> gana puntos base + bonificación por valor ALTO
-        servicioPuntos.devolverObjetoPerdido(juan, billetera);
-        System.out.println("\nDespués de devolver la billetera (valor ALTO):");
-        System.out.println(juan);
-        System.out.println(billetera);
+    private static Objeto elegirObjeto(String accion) {
+        if (OBJETOS.isEmpty()) {
+            System.out.println("\nTodavia no hay objetos registrados. Registra uno primero.");
+            return null;
+        }
 
-        // 7. Historial completo de puntos
-        System.out.println("\n== Historial de puntos de " + juan.getNombre() + " ==");
-        juan.getHistorialPuntos().forEach(System.out::println);
+        System.out.println("\nObjetos disponibles para " + accion + ":");
+        for (int i = 0; i < OBJETOS.size(); i++) {
+            System.out.println((i + 1) + ". " + OBJETOS.get(i));
+        }
 
-        // 8. Canje de una recompensa con los puntos acumulados
-        Recompensa vale = new Recompensa("REC001", "Vale de $10.000 en la cafetería", 50);
-        boolean canjeExitoso = servicioRecompensas.canjear(juan, vale);
+        int indice = leerEntero("Elige un objeto (numero): ", 1, OBJETOS.size());
+        return OBJETOS.get(indice - 1);
+    }
 
-        System.out.println("\n== Canje de recompensa ==");
-        System.out.println("¿Canje exitoso? " + canjeExitoso);
-        System.out.println(juan);
+    private static CategoriaObjeto leerCategoria() {
+        CategoriaObjeto[] categorias = CategoriaObjeto.values();
+        System.out.println("Categoria:");
+        for (int i = 0; i < categorias.length; i++) {
+            System.out.println((i + 1) + ". " + categorias[i]);
+        }
+        int indice = leerEntero("Elige una categoria (numero): ", 1, categorias.length);
+        return categorias[indice - 1];
+    }
+
+    private static ValorObjeto leerValor() {
+        ValorObjeto[] valores = ValorObjeto.values();
+        System.out.println("Valor estimado del objeto:");
+        for (int i = 0; i < valores.length; i++) {
+            System.out.println((i + 1) + ". " + valores[i]);
+        }
+        int indice = leerEntero("Elige un valor (numero): ", 1, valores.length);
+        return valores[indice - 1];
+    }
+
+    private static EstadoObjeto leerEstadoInicial() {
+        System.out.println("El objeto esta perdido o ya lo encontraron?");
+        System.out.println("1. " + EstadoObjeto.PERDIDO);
+        System.out.println("2. " + EstadoObjeto.ENCONTRADO);
+        int indice = leerEntero("Elige una opcion: ", 1, 2);
+        return indice == 1 ? EstadoObjeto.PERDIDO : EstadoObjeto.ENCONTRADO;
+    }
+
+    private static int leerEntero(String mensaje, int minimo, int maximo) {
+        while (true) {
+            System.out.print(mensaje);
+            String linea = TECLADO.nextLine().trim();
+            try {
+                int valor = Integer.parseInt(linea);
+                if (valor >= minimo && valor <= maximo) {
+                    return valor;
+                }
+                System.out.println("Debe ser un numero entre " + minimo + " y " + maximo + ".");
+            } catch (NumberFormatException e) {
+                System.out.println("Escribe un numero valido.");
+            }
+        }
     }
 }
