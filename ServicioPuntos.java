@@ -1,25 +1,14 @@
-package back.puntos.servicio;
+package back.service;
 
-import back.puntos.modelo.Estudiante;
-import back.puntos.modelo.EstadoObjeto;
-import back.puntos.modelo.Objeto;
+import back.model.Estudiante;
+import back.model.EstadoObjeto;
+import back.model.Objeto;
 
-/**
- * Implementa la historia de usuario:
- * "Como estudiante de la Sergio, quiero ganar puntos al ver o registrar
- *  objetos y recibir aún más puntos cuando devuelvo un objeto perdido
- *  de gran valor, para poder reclamar recompensas en el futuro."
- *
- * Esta clase es intencionalmente independiente de cualquier capa de
- * persistencia o de interfaz gráfica: solo recibe objetos del modelo
- * y aplica la lógica de negocio sobre ellos. Esto facilita integrarla
- * con otros módulos del repositorio (por ejemplo uno de UI, otro de
- * base de datos, otro de autenticación, etc.) sin acoplarse a ellos.
- */
+
 public class ServicioPuntos {
 
-    // Puntos otorgados por acción. Se dejan como constantes públicas
-    // para que otros módulos puedan mostrarlos en pantalla si lo desean.
+    // Puntos otorgados por accion. Se dejan como constantes publicas
+    // para que otros modulos puedan mostrarlos en pantalla si lo desean.
     public static final int PUNTOS_POR_VER_OBJETO = 1;
     public static final int PUNTOS_POR_REGISTRAR_OBJETO = 5;
     public static final int PUNTOS_BASE_POR_DEVOLUCION = 20;
@@ -31,12 +20,13 @@ public class ServicioPuntos {
      */
     public void verObjeto(Estudiante estudiante, Objeto objeto) {
         validarParametros(estudiante, objeto);
-        boolean esPrimeraVez = objeto.registrarVisualizacion(estudiante.getId());
+        boolean esPrimeraVez = objeto.registrarVisualizacion(estudiante.getCorreo());
         if (esPrimeraVez) {
             estudiante.otorgarPuntos(
                     PUNTOS_POR_VER_OBJETO,
-                    "Visualización del objeto '" + objeto.getNombre() + "'"
+                    "Visualizacion del objeto '" + objeto.getNombre() + "'"
             );
+            ServicioEstudiantes.guardarCambios();
         }
     }
 
@@ -46,7 +36,7 @@ public class ServicioPuntos {
      */
     public void registrarObjeto(Estudiante estudiante, Objeto objeto) {
         validarParametros(estudiante, objeto);
-        objeto.setEstudianteRegistraId(estudiante.getId());
+        objeto.setCorreoEstudianteRegistra(estudiante.getCorreo());
         if (objeto.getEstado() == null) {
             objeto.setEstado(EstadoObjeto.REGISTRADO);
         }
@@ -54,15 +44,16 @@ public class ServicioPuntos {
                 PUNTOS_POR_REGISTRAR_OBJETO,
                 "Registro del objeto '" + objeto.getNombre() + "'"
         );
+        ServicioEstudiantes.guardarCambios();
     }
 
     /**
-     * Otorga puntos por devolver un objeto perdido a su dueño.
-     * Los puntos totales = puntos base de devolución + bonificación
-     * según el valor del objeto (a mayor valor, mayor bonificación).
+     * Otorga puntos por devolver un objeto perdido a su dueno.
+     * Los puntos totales = puntos base de devolucion + bonificacion
+     * segun el valor del objeto (a mayor valor, mayor bonificacion).
      *
      * @throws IllegalStateException si el objeto ya fue devuelto,
-     *         o si no está en un estado válido para ser devuelto.
+     *         o si no esta en un estado valido para ser devuelto.
      */
     public void devolverObjetoPerdido(Estudiante estudiante, Objeto objeto) {
         validarParametros(estudiante, objeto);
@@ -79,12 +70,13 @@ public class ServicioPuntos {
         int puntosTotales = PUNTOS_BASE_POR_DEVOLUCION + objeto.getValor().getBonificacionDevolucion();
 
         objeto.setEstado(EstadoObjeto.DEVUELTO);
-        objeto.setEstudianteDevuelveId(estudiante.getId());
+        objeto.setCorreoEstudianteDevuelve(estudiante.getCorreo());
 
         estudiante.otorgarPuntos(
                 puntosTotales,
-                "Devolución del objeto '" + objeto.getNombre() + "' (valor " + objeto.getValor() + ")"
+                "Devolucion del objeto '" + objeto.getNombre() + "' (valor " + objeto.getValor() + ")"
         );
+        ServicioEstudiantes.guardarCambios();
     }
 
     private void validarParametros(Estudiante estudiante, Objeto objeto) {
