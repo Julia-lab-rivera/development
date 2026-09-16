@@ -1,15 +1,9 @@
-package back.puntos.servicio;
+package back.service;
 
-import back.puntos.modelo.Estudiante;
-import back.puntos.modelo.Recompensa;
+import back.model.Estudiante;
+import back.model.Recompensa;
 
-/**
- * Servicio encargado de canjear puntos por recompensas.
- * Se deja separado de ServicioPuntos porque, aunque hoy es sencillo,
- * al integrarse con otros programas del repositorio (por ejemplo un
- * catálogo de recompensas conectado a una base de datos) es probable
- * que crezca de forma independiente.
- */
+
 public class ServicioRecompensas {
 
     /**
@@ -30,6 +24,7 @@ public class ServicioRecompensas {
                 recompensa.getCostoPuntos(),
                 "Canje de recompensa: " + recompensa.getNombre()
         );
+        ServicioEstudiantes.guardarCambios();
         return true;
     }
 }
